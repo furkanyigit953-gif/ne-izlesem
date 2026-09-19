@@ -72,6 +72,20 @@ const buildWheelStrip = (pool: MovieItem[], minimumLength = 30) => {
   return centerFirstMovie(strip);
 };
 
+const IconSparkles = ({ className = 'w-4 h-4' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <path d="M12 2.75l1.3 4.95a3.2 3.2 0 0 0 2.25 2.25l4.95 1.3-4.95 1.3a3.2 3.2 0 0 0-2.25 2.25l-1.3 4.95-1.3-4.95a3.2 3.2 0 0 0-2.25-2.25l-4.95-1.3 4.95-1.3a3.2 3.2 0 0 0 2.25-2.25l1.3-4.95Z" />
+    <path d="M19 3.5v3M20.5 5h-3M5 17.5v3M6.5 19H3.5" strokeLinecap="round" />
+  </svg>
+);
+
+const IconRefreshCw = ({ className = 'w-4 h-4' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M1 4v6h6M23 20v-6h-6" />
+    <path d="M20.49 9A9 9 0 0 0 5.64 5.64M3.51 15A9 9 0 0 0 18.36 18.36" />
+  </svg>
+);
+
 const IconSpin = ({ className = 'w-4 h-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M20 11a8.1 8.1 0 0 0-14.8-4.4L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8.1 8.1 0 0 0 14.8 4.4L21 15"/><path d="M21 20v-5h-5"/>
@@ -258,9 +272,48 @@ const Wheel: React.FC<WheelProps> = memo(({ movies = [], activeType: propType = 
         {wheelDisplayPool.length === 0 && <div className="absolute inset-0 z-50 flex items-center justify-center px-6 text-center text-sm font-bold text-slate-500">Bu filtrelere uygun yapım bulunamadı.</div>}
       </div>
 
-      <div className="mt-5 flex flex-col items-center gap-2">
-        <button type="button" onClick={spin} disabled={spinning || wheelDisplayPool.length === 0} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-600 px-9 py-3.5 text-sm font-black text-white shadow-[0_12px_35px_rgba(14,165,233,0.22)] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40"><IconSpin />{spinning ? 'ŞANSIN DÖNÜYOR...' : 'ÇARKI ÇEVİR'}</button>
-        <span className="text-[10px] font-semibold text-slate-600">{wheelDisplayPool.length} aday filtrelere uyuyor</span>
+      <div className="mt-6 flex flex-col items-center gap-3">
+        {/* Premium Glassmorphic Button with Dual Glow */}
+        <div className="relative group">
+          {/* Outer Glow Layer */}
+          <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400/40 via-sky-400/20 to-blue-500/40 rounded-3xl blur-2xl opacity-0 group-hover:opacity-100 transition-all duration-500 animate-pulse" />
+          
+          {/* Inner Glow Layer */}
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-300/20 via-transparent to-blue-400/20 rounded-3xl blur-lg opacity-0 group-hover:opacity-100 transition-all duration-500" />
+          
+          {/* Button */}
+          <button
+            type="button"
+            onClick={spin}
+            disabled={spinning || wheelDisplayPool.length === 0}
+            className="relative inline-flex items-center justify-center gap-3 px-8 py-4 text-sm font-black uppercase tracking-widest text-white rounded-3xl overflow-hidden disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-300 hover:scale-105 active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, rgba(34,211,238,0.1) 0%, rgba(59,130,246,0.05) 100%)',
+              border: '1.5px solid rgba(34,211,238,0.4)',
+              backdropFilter: 'blur(20px)',
+              boxShadow: spinning 
+                ? '0 0 40px rgba(34,211,238,0.6), inset 0 0 20px rgba(34,211,238,0.2), 0 8px 32px rgba(14,165,233,0.25)'
+                : '0 0 20px rgba(34,211,238,0.3), inset 0 0 10px rgba(34,211,238,0.1), 0 4px 20px rgba(14,165,233,0.15)',
+            }}
+          >
+            {/* Content Wrapper */}
+            <div className="relative z-10 flex items-center justify-center gap-3">
+              <div className={`transition-all duration-500 ${spinning ? 'animate-spin' : ''}`}>
+                {spinning ? <IconRefreshCw className="w-5 h-5" /> : <IconSparkles className="w-5 h-5" />}
+              </div>
+              <span className="text-sm font-black tracking-wider">
+                {spinning ? 'ŞANSIN DÖNÜYOR...' : 'ÇARKI ÇEVİR'}
+              </span>
+              <div className="transition-all duration-500 opacity-0 group-hover:opacity-100">
+                <IconRefreshCw className="w-5 h-5 animate-spin" />
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <span className="text-[10px] font-semibold text-slate-600">
+          {wheelDisplayPool.length} aday filtrelere uyuyor
+        </span>
       </div>
     </div>
   );
