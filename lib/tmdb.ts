@@ -26,7 +26,7 @@ export type TmdbDetail = {
     cast?: { id: number; name: string; character?: string; profile_path?: string | null }[];
     crew?: { id: number; name: string; job: string }[];
   };
-  videos?: { results?: { key: string; site: string; type: string; official?: boolean; name?: string }[] };
+  videos?: { results?: { key: string; site: string; type: string; official?: boolean; name?: string; iso_639_1?: string }[] };
   recommendations?: { results?: TmdbDetail[] };
   'watch/providers'?: {
     results?: Record<string, TmdbWatchCountry | undefined>;
@@ -75,5 +75,7 @@ export function imageUrl(path?: string | null, size = 'w500') {
 export async function getTmdbDetail(type: 'movie' | 'tv', id: string) {
   return tmdbFetch<TmdbDetail>(`/${type}/${encodeURIComponent(id)}`, {
     append_to_response: 'credits,videos,recommendations,watch/providers',
+    // Without this, TMDB only returns videos matching the tr-TR page language, hiding most trailers.
+    include_video_language: 'tr,en,null',
   });
 }

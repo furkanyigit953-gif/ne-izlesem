@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { getPosterSrc } from '../lib/homeShared';
+import { pickYoutubeTrailer } from '../lib/detailMedia';
 import { MovieItem } from '../types/movie';
 
 interface MovieDetailModalProps {
@@ -127,22 +128,38 @@ function MovieDetailModalContent({
     return getPosterSrc(candidate || '');
   }, [movie]);
 
-  const rawTrailerKey = (movie as MovieItem & { trailerKey?: string }).trailerKey;
-  const trailerKey = typeof rawTrailerKey === 'string' && /^[A-Za-z0-9_-]{6,}$/.test(rawTrailerKey.trim())
-    ? rawTrailerKey.trim()
-    : null;
-  const trailerFallbackUrl = useMemo(() => {
-    const query = `${movie.title} ${movie.year || ''} resmi fragman`;
-    return `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(query)}`;
-  }, [movie.title, movie.year]);
-  const initialTrailerUrl = useMemo(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    if (trailerKey) return `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&enablejsapi=1&origin=${origin}`;
-    return trailerFallbackUrl;
-  }, [trailerFallbackUrl, trailerKey]);
+  const rawTmdbId = (movie as MovieItem & { tmdbId?: number }).tmdbId;
+
+  type TrailerState = { status: 'loading' | 'ready' | 'empty'; embedUrl?: string; name?: string };
+  const [trailerState, setTrailerState] = useState<TrailerState>({ status: rawTmdbId ? 'loading' : 'empty' });
+
+  useEffect(() => {
+    if (!rawTmdbId) {
+      setTrailerState({ status: 'empty' });
+      return;
+    }
+
+    let cancelled = false;
+    setTrailerState({ status: 'loading' });
+    const apiType = movie.contentType === 'Dizi' ? 'tv' : 'movie';
+
+    fetch(`/api/details/${apiType}/${rawTmdbId}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const trailer = data ? pickYoutubeTrailer(data.videos) : null;
+        setTrailerState(trailer ? { status: 'ready', embedUrl: trailer.embedUrl, name: trailer.name } : { status: 'empty' });
+      })
+      .catch(() => {
+        if (!cancelled) setTrailerState({ status: 'empty' });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawTmdbId, movie.contentType]);
 
   const [failedPoster, setFailedPoster] = useState<string | null>(null);
-  const [trailerFailed, setTrailerFailed] = useState(false);
 
   const trailerSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${movie.title} ${movie.year || ''} fragman`)}`;
   const providerEntries = useMemo(() => {
@@ -175,13 +192,34 @@ function MovieDetailModalContent({
       .slice(0, 6);
   }, [movie, allMovies]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm overflow-y-auto animate-fade-in">
-      <div className="relative my-auto w-full max-w-5xl overflow-hidden rounded-[28px] border border-white/10 bg-[#0b101d] text-left shadow-[0_30px_100px_rgba(0,0,0,0.8)]" style={{ animation: 'modalScaleIn 0.28s ease-out forwards' }}>
-        <div className="sticky top-0 z-[60] h-0">
-          <button onClick={onClose} aria-label="Kapat" className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/75 text-sm font-bold text-slate-300 shadow-lg backdrop-blur-xl transition hover:scale-105 hover:border-amber-300/50 hover:bg-[#21190a] hover:text-amber-100">✕</button>
-        </div>
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm overflow-y-auto animate-fade-in"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Kapat"
+        className="fixed right-4 top-4 z-[70] flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-base font-bold text-white shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:bg-black/90 sm:right-6 sm:top-6"
+      >
+        ✕
+      </button>
+
+      <div
+        className="relative my-auto w-full max-w-5xl overflow-hidden rounded-[28px] border border-white/10 bg-[#0b101d] text-left shadow-[0_30px_100px_rgba(0,0,0,0.8)]"
+        style={{ animation: 'modalScaleIn 0.28s ease-out forwards' }}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="grid grid-cols-1 md:grid-cols-[290px_1fr]">
           <div className="relative aspect-[2/3] w-full overflow-hidden border-b border-white/10 bg-slate-950 md:border-b-0 md:border-r">
             {failedPoster !== rawPoster && rawPoster ? (
@@ -219,24 +257,48 @@ function MovieDetailModalContent({
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Fragman</span>
-                <a href={trailerSearchUrl} target="_blank" rel="noreferrer" className="text-[10px] font-semibold text-cyan-300 transition hover:text-cyan-200">YouTube&apos;da Aç</a>
+                {trailerState.status === 'ready' && (
+                  <a href={trailerSearchUrl} target="_blank" rel="noreferrer" className="text-[10px] font-semibold text-cyan-300 transition hover:text-cyan-200">YouTube&apos;da Aç</a>
+                )}
               </div>
-              <div className="overflow-hidden rounded-xl border border-cyan-400/20 bg-black">
-                <div className="aspect-video w-full">
-                  <iframe
-                    src={trailerFailed ? trailerFallbackUrl : initialTrailerUrl}
-                    title={`${movie.title} fragman`}
-                    className="h-full w-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    onError={() => setTrailerFailed(true)}
-                    allowFullScreen
-                  />
+
+              {trailerState.status === 'loading' && (
+                <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-white/10 bg-black/40">
+                  <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-cyan-400/25 border-t-cyan-300" />
                 </div>
-              </div>
-              <a href={trailerSearchUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 self-start rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-[11px] font-black text-red-200 transition hover:border-red-300/50 hover:bg-red-500/20">
-                <span>▶</span> Fragmanı İzle
-              </a>
+              )}
+
+              {trailerState.status === 'ready' && trailerState.embedUrl && (
+                <div className="overflow-hidden rounded-xl border border-cyan-400/20 bg-black">
+                  <div className="aspect-video w-full">
+                    <iframe
+                      src={trailerState.embedUrl}
+                      title={trailerState.name || `${movie.title} fragman`}
+                      className="h-full w-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                    />
+                  </div>
+                </div>
+              )}
+
+              {trailerState.status === 'empty' && (
+                <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-white/15 bg-black/30 px-4 py-8 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-cyan-200">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="m10 8.5 5 3.5-5 3.5v-7Z" fill="currentColor" stroke="none" /></svg>
+                  </div>
+                  <p className="text-sm font-bold text-white">Bu yapım için resmî fragman bulunamadı</p>
+                  <a
+                    href={trailerSearchUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2 text-[11px] font-black text-red-200 transition hover:border-red-300/50 hover:bg-red-500/20"
+                  >
+                    <span>▶</span> YouTube&apos;da Ara
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">

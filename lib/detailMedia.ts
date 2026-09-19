@@ -33,92 +33,51 @@ export function googleSearchUrl(name: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(name)}`;
 }
 
+function toEmbeddableTrailer(video: { key: string; name?: string }, fallbackLabel: string) {
+  const key = video.key.trim();
+  if (!YOUTUBE_KEY_PATTERN.test(key)) return null;
+  return {
+    key,
+    embedUrl: `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&rel=0`,
+    name: video.name || fallbackLabel,
+  };
+}
+
+type PickableVideo = { key: string; site: string; type: string; official?: boolean; name?: string; iso_639_1?: string };
+
+function findVideo(results: PickableVideo[], type: string, iso: string) {
+  const matches = results.filter((video) => {
+    const site = (video.site || '').toLowerCase();
+    const videoType = (video.type || '').toLowerCase();
+    const videoIso = (video.iso_639_1 || '').toLowerCase();
+    return site === 'youtube' && videoType === type && videoIso === iso && YOUTUBE_KEY_PATTERN.test((video.key || '').trim());
+  });
+
+  const official = matches.find((video) => video.official);
+  return official || matches[0] || null;
+}
+
+// Öncelik sırası: TR Trailer -> EN Trailer -> TR Teaser -> EN Teaser -> TR Clip -> EN Clip
 export function pickYoutubeTrailer(videos?: TmdbDetail['videos']) {
-  const results = videos?.results || [];
+  const results = (videos?.results || []) as PickableVideo[];
 
-  // Türkçe fragman ara
-  const turkishTrailers = results.filter((video) => {
-    const site = (video.site || '').toLowerCase();
-    const type = (video.type || '').toLowerCase();
-    const iso = (video.iso_639_1 || '').toLowerCase();
-    return site === 'youtube' && type === 'trailer' && iso === 'tr' && YOUTUBE_KEY_PATTERN.test((video.key || '').trim());
-  });
+  const priorities: Array<{ type: string; iso: string; label: string }> = [
+    { type: 'trailer', iso: 'tr', label: 'Fragman' },
+    { type: 'trailer', iso: 'en', label: 'Trailer' },
+    { type: 'teaser', iso: 'tr', label: 'Teaser' },
+    { type: 'teaser', iso: 'en', label: 'Teaser' },
+    { type: 'clip', iso: 'tr', label: 'Klip' },
+    { type: 'clip', iso: 'en', label: 'Clip' },
+  ];
 
-  // Türkçe fragman bulunursa en resmi olanı seç
-  if (turkishTrailers.length > 0) {
-    const official = turkishTrailers.find((video) => video.official);
-    const chosen = official || turkishTrailers[0];
-    if (chosen?.key && YOUTUBE_KEY_PATTERN.test(chosen.key.trim())) {
-      const key = chosen.key.trim();
-      return {
-        key,
-        embedUrl: `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&rel=0`,
-        name: chosen.name || 'Fragman',
-      };
+  for (const { type, iso, label } of priorities) {
+    const video = findVideo(results, type, iso);
+    if (video?.key) {
+      const trailer = toEmbeddableTrailer(video, label);
+      if (trailer) return trailer;
     }
   }
 
-  // İngilizce fragman ara (fallback)
-  const englishTrailers = results.filter((video) => {
-    const site = (video.site || '').toLowerCase();
-    const type = (video.type || '').toLowerCase();
-    const iso = (video.iso_639_1 || '').toLowerCase();
-    return site === 'youtube' && type === 'trailer' && iso === 'en' && YOUTUBE_KEY_PATTERN.test((video.key || '').trim());
-  });
-
-  if (englishTrailers.length > 0) {
-    const official = englishTrailers.find((video) => video.official);
-    const chosen = official || englishTrailers[0];
-    if (chosen?.key && YOUTUBE_KEY_PATTERN.test(chosen.key.trim())) {
-      const key = chosen.key.trim();
-      return {
-        key,
-        embedUrl: `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&rel=0`,
-        name: chosen.name || 'Fragman',
-      };
-    }
-  }
-
-  // Son fallback: Teaser ara (Türkçe -> İngilizce)
-  const turkishTeasers = results.filter((video) => {
-    const site = (video.site || '').toLowerCase();
-    const type = (video.type || '').toLowerCase();
-    const iso = (video.iso_639_1 || '').toLowerCase();
-    return site === 'youtube' && type === 'teaser' && iso === 'tr' && YOUTUBE_KEY_PATTERN.test((video.key || '').trim());
-  });
-
-  if (turkishTeasers.length > 0) {
-    const chosen = turkishTeasers[0];
-    if (chosen?.key && YOUTUBE_KEY_PATTERN.test(chosen.key.trim())) {
-      const key = chosen.key.trim();
-      return {
-        key,
-        embedUrl: `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&rel=0`,
-        name: chosen.name || 'Teaser',
-      };
-    }
-  }
-
-  const englishTeasers = results.filter((video) => {
-    const site = (video.site || '').toLowerCase();
-    const type = (video.type || '').toLowerCase();
-    const iso = (video.iso_639_1 || '').toLowerCase();
-    return site === 'youtube' && type === 'teaser' && iso === 'en' && YOUTUBE_KEY_PATTERN.test((video.key || '').trim());
-  });
-
-  if (englishTeasers.length > 0) {
-    const chosen = englishTeasers[0];
-    if (chosen?.key && YOUTUBE_KEY_PATTERN.test(chosen.key.trim())) {
-      const key = chosen.key.trim();
-      return {
-        key,
-        embedUrl: `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&rel=0`,
-        name: chosen.name || 'Teaser',
-      };
-    }
-  }
-
-  // Hiçbirşey bulunamadı
   return null;
 }
 

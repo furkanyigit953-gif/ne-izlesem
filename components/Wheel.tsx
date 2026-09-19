@@ -24,6 +24,7 @@ const CARD_WIDTH = 180;
 const GAP = 14;
 const STEP = CARD_WIDTH + GAP;
 const CENTER_INDEX = 4;
+const MIN_POOL_SIZE = 12;
 
 const DEFAULT_WHEEL_MOVIES: MovieItem[] = [
   ['Inception', '2010', 'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg'],
@@ -62,11 +63,12 @@ const centerFirstMovie = (list: MovieItem[]) => list.length > CENTER_INDEX
   : list;
 
 const buildWheelStrip = (pool: MovieItem[], minimumLength = 30) => {
-  if (pool.length === 0) return centerFirstMovie(DEFAULT_WHEEL_MOVIES);
+  // Never build the strip from an empty source, or indices beyond minimumLength resolve to undefined cards.
+  const source = pool.length > 0 ? pool : DEFAULT_WHEEL_MOVIES;
 
   const strip = Array.from(
-    { length: Math.max(minimumLength, pool.length) },
-    (_, index) => pool[index % pool.length]
+    { length: Math.max(minimumLength, source.length) },
+    (_, index) => source[index % source.length]
   );
 
   return centerFirstMovie(strip);
@@ -150,9 +152,18 @@ const Wheel: React.FC<WheelProps> = memo(({ movies = [], activeType: propType = 
     .slice(0, 30), [platformMatches]);
   const wheelDisplayPool = filtered;
 
+  // Guarantee a minimum populated wheel: pad with popular defaults instead of ever showing an empty/blank card.
+  const usingFallbackPool = wheelDisplayPool.length < MIN_POOL_SIZE;
+  const effectivePool = useMemo(() => {
+    if (wheelDisplayPool.length >= MIN_POOL_SIZE) return wheelDisplayPool;
+    const usedKeys = new Set(wheelDisplayPool.map((m) => `${m.contentType}:${m.title}`));
+    const padding = DEFAULT_WHEEL_MOVIES.filter((m) => !usedKeys.has(`${m.contentType}:${m.title}`));
+    return [...wheelDisplayPool, ...padding].slice(0, MIN_POOL_SIZE);
+  }, [wheelDisplayPool]);
+
   useEffect(() => {
     if (!spinning) {
-      const wheelPool = wheelDisplayPool.slice(0, 15);
+      const wheelPool = effectivePool.slice(0, 15);
       // The strip must reset immediately when filters change to avoid stale cards.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setItems(buildWheelStrip(wheelPool));
@@ -161,22 +172,12 @@ const Wheel: React.FC<WheelProps> = memo(({ movies = [], activeType: propType = 
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTranslate(CENTER_INDEX * STEP);
     }
-  }, [wheelDisplayPool, spinning]);
-
-  if (availableMovies.length === 0) {
-    return (
-      <div className="w-full rounded-[26px] border border-white/[0.08] bg-[#070c15] p-4 shadow-[0_20px_70px_rgba(0,0,0,0.42)] sm:p-5">
-        <div className="flex h-[285px] items-center justify-center rounded-[22px] border border-dashed border-cyan-300/25 bg-[#03060c] px-6 text-center text-sm font-bold text-slate-300">
-          Bu filtrelerle eşleşen yapım bulunamadı.
-        </div>
-      </div>
-    );
-  }
+  }, [effectivePool, spinning]);
 
   const spin = () => {
-    if (spinning || wheelDisplayPool.length === 0) return;
+    if (spinning || effectivePool.length === 0) return;
     const token = ++tokenRef.current;
-    const shuffled = [...wheelDisplayPool].sort(() => Math.random() - 0.5);
+    const shuffled = [...effectivePool].sort(() => Math.random() - 0.5);
     const track = buildWheelStrip(shuffled, 64);
     const winnerIndex = 48 + Math.floor(Math.random() * 5);
     setItems(track);
@@ -191,7 +192,7 @@ const Wheel: React.FC<WheelProps> = memo(({ movies = [], activeType: propType = 
     }));
     window.setTimeout(() => {
       if (tokenRef.current !== token) return;
-      const winner = track[winnerIndex];
+      const winner = track[winnerIndex] || track[track.length - 1];
       setSelected(winnerIndex);
       setSpinning(false);
       onSpinChange?.(false);
@@ -269,7 +270,11 @@ const Wheel: React.FC<WheelProps> = memo(({ movies = [], activeType: propType = 
           })}
         </div>
 
-        {wheelDisplayPool.length === 0 && <div className="absolute inset-0 z-50 flex items-center justify-center px-6 text-center text-sm font-bold text-slate-500">Bu filtrelere uygun yapım bulunamadı.</div>}
+        {usingFallbackPool && (
+          <div className="pointer-events-none absolute left-3 top-3 z-40 rounded-full border border-amber-300/30 bg-black/55 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-200 backdrop-blur-md">
+            {wheelDisplayPool.length === 0 ? 'Bu filtrelere uygun sonuç yok · Popüler öneriler' : 'Popüler önerilerle dolduruldu'}
+          </div>
+        )}
       </div>
 
       <div className="mt-6 flex flex-col items-center gap-3">
@@ -285,7 +290,7 @@ const Wheel: React.FC<WheelProps> = memo(({ movies = [], activeType: propType = 
           <button
             type="button"
             onClick={spin}
-            disabled={spinning || wheelDisplayPool.length === 0}
+            disabled={spinning || effectivePool.length === 0}
             className="relative inline-flex items-center justify-center gap-3 px-8 py-4 text-sm font-black uppercase tracking-widest text-white rounded-3xl overflow-hidden disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-300 hover:scale-105 active:scale-95"
             style={{
               background: 'linear-gradient(135deg, rgba(34,211,238,0.1) 0%, rgba(59,130,246,0.05) 100%)',
@@ -312,7 +317,7 @@ const Wheel: React.FC<WheelProps> = memo(({ movies = [], activeType: propType = 
         </div>
 
         <span className="text-[10px] font-semibold text-slate-600">
-          {wheelDisplayPool.length} aday filtrelere uyuyor
+          {wheelDisplayPool.length > 0 ? `${wheelDisplayPool.length} aday filtrelere uyuyor` : `${effectivePool.length} popüler öneri hazır`}
         </span>
       </div>
     </div>
