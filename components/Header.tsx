@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { MovieItem, UserProfile } from '../types/movie';
+import NeIzlesemLogo from './NeIzlesemLogo';
 
 type HeaderProps = {
   isAIAssistantOpen: boolean;
@@ -158,20 +159,9 @@ export default function Header({
           aria-label="Ne İzlesem ana sayfa"
           className="group flex shrink-0 items-center gap-2.5 rounded-xl py-1 pr-2 outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-cyan-400/70"
         >
-          <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-amber-400 shadow-[0_0_20px_rgba(217,70,239,0.38)] transition-all duration-300 group-hover:scale-105 group-hover:shadow-[0_0_30px_rgba(245,158,11,0.42)]">
-            <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            <IconSparkles className="absolute right-1 top-1 h-3 w-3 text-white/90" />
-            <span className="relative text-lg font-black tracking-tight text-white">N</span>
-          </div>
+          <NeIzlesemLogo compact className="h-10 w-10 shrink-0 transition-transform duration-300 group-hover:scale-105" />
 
-          <div className="hidden leading-none sm:flex sm:flex-col">
-            <span className="text-sm font-black tracking-tight text-white">
-              Neİzlesem
-            </span>
-            <span className="mt-1 text-[9px] font-semibold tracking-[0.12em] text-fuchsia-200">
-              AI FILM HUB
-            </span>
-          </div>
+          <NeIzlesemLogo className="hidden h-[42px] w-[170px] sm:block" />
         </button>
 
         {/* AI ASİSTAN */}
